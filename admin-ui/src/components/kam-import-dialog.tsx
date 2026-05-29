@@ -218,14 +218,54 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
   }
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+    const files = Array.from(event.target.files ?? [])
+    if (files.length === 0) return
 
     try {
-      const text = await file.text()
-      setJsonInput(text)
+      // 读取所有文件并合并 accounts，保留各自版本元信息以便排错
+      const fileTexts = await Promise.all(
+        files.map(async (f) => ({ name: f.name, text: await f.text() }))
+      )
+
+      const merged: unknown[] = []
+      const failed: { name: string; reason: string }[] = []
+
+      for (const { name, text } of fileTexts) {
+        try {
+          const parsed = JSON.parse(text)
+          if (parsed && Array.isArray(parsed.accounts)) {
+            merged.push(...parsed.accounts)
+          } else if (Array.isArray(parsed)) {
+            merged.push(...parsed)
+          } else if (parsed && typeof parsed === 'object') {
+            // 单账号对象（新/旧格式）
+            merged.push(parsed)
+          } else {
+            failed.push({ name, reason: '无法识别的 JSON 结构' })
+          }
+        } catch (e) {
+          failed.push({ name, reason: extractErrorMessage(e) })
+        }
+      }
+
+      if (merged.length === 0) {
+        toast.error(`所有文件均解析失败：${failed.map((f) => `${f.name}（${f.reason}）`).join('；')}`)
+        return
+      }
+
+      // 合并后按统一格式输出，复用 textarea 现有的解析与预览逻辑
+      const mergedJson = JSON.stringify({ version: 'merged', accounts: merged }, null, 2)
+      setJsonInput(mergedJson)
       setResults([])
-      toast.success(`已加载 ${file.name}`)
+
+      const fileSummary = files.length === 1 ? files[0].name : `${files.length} 个文件`
+      if (failed.length > 0) {
+        toast.warning(
+          `已加载 ${fileSummary}，合并 ${merged.length} 条记录；${failed.length} 个文件解析失败：${failed.map((f) => f.name).join('、')}`
+        )
+      } else {
+        toast.success(`已加载 ${fileSummary}，合并 ${merged.length} 条记录`)
+      }
     } catch (error) {
       toast.error('读取文件失败: ' + extractErrorMessage(error))
     } finally {
@@ -495,6 +535,7 @@ export function KamImportDialog({ open, onOpenChange }: KamImportDialogProps) {
                   ref={fileInputRef}
                   type="file"
                   accept="application/json,.json"
+                  multiple
                   className="hidden"
                   onChange={handleFileSelect}
                 />

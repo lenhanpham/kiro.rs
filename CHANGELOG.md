@@ -47,6 +47,15 @@ project adheres to [Semantic Versioning](https://semver.org/).
 - **`MultiTokenManager::clone_all_credentials`** 用于 admin 服务层取完整凭据快照（脱敏由调用方控制）。
 - **新 admin-ui 类型 `KamExportAccount` / `KamExportResponse`**，前端凭据列表批量选择后可一键下载。
 
+### ✨ 新功能 — 体验改进
+
+- **在线更新对话框 Release Notes 支持 Markdown 渲染**：之前折叠面板里的 Changelog 只走 `whitespace-pre-wrap` 渲染原文，标题 / 列表 / 链接全都显示成纯文本。改用项目内自带的轻量 markdown 渲染器（`admin-ui/src/components/markdown.tsx`，~280 行单文件、无外部依赖）：覆盖 `# – ####` 标题、`-/*/+` 与 `1. 2. 3.` 列表、`> 引用`、`---` 分隔线、围栏代码块、行内 `code`、`**加粗**` / `*斜体*` / `[文本](url)`。不引入 markdown-it / remark 等大型依赖，体积可忽略。
+- **KAM 导入支持多文件批量合并**：`KamImportDialog` 文件选择器加 `multiple` 属性，一次可选多个 KAM 导出 JSON；前端把每个文件的 `accounts` 数组合并成一份再走原有解析与预览流程，单文件失败不影响其他文件继续导入；toast 总结展示成功合并的记录数与失败文件名。
+
+### ✨ 新功能 — KAM 导入兼容
+- **兼容 KAM 1.6.9+ 的毫秒时间戳 `expiresAt`**：旧版导出 RFC3339 字符串、新版改为毫秒数字。前端在解析时统一规范化为 ISO 字符串，下游导入逻辑无需关心两种格式。
+- **打开对话框自动触发文件选择器**：减少一次点击，用户打开 KAM 导入对话框后直接进入选文件流程。
+
 ### 🛠 修复
 
 - **Credit 数值小数位失控（0.5.0 → 0.5.1）**：`formatCredits()` 中 `value ≥ 1` 的分支会回退到 `formatNumber`，而 `formatNumber` 对 `< 1000` 的数直接 `String(value)`，导致 `1.5755479141293534` 这类长浮点被原样打印。修复后统一规则：
